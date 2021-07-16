@@ -50,15 +50,55 @@ import org.apache.ibatis.util.MapUtil;
  */
 public class Reflector {
 
-  private final Class<?> type;
-  private final String[] readablePropertyNames;
-  private final String[] writablePropertyNames;
-  private final Map<String, Invoker> setMethods = new HashMap<>();
-  private final Map<String, Invoker> getMethods = new HashMap<>();
-  private final Map<String, Class<?>> setTypes = new HashMap<>();
-  private final Map<String, Class<?>> getTypes = new HashMap<>();
-  private Constructor<?> defaultConstructor;
 
+
+  /**
+   * 对应的类
+   */
+  private final Class<?> type;
+  /**
+   * 可读属性数组
+   */
+  private final String[] readablePropertyNames;
+  /**
+   * 可写属性集合
+   */
+  private final String[] writablePropertyNames;
+  /**
+   * 属性对应的 setting 方法的映射。
+   *
+   * key 为属性名称
+   * value 为 Invoker 对象
+   */
+  private final Map<String, Invoker> setMethods = new HashMap<>();
+  /**
+   * 属性对应的 getting 方法的映射。
+   *
+   * key 为属性名称
+   * value 为 Invoker 对象
+   */
+  private final Map<String, Invoker> getMethods = new HashMap<>();
+  /**
+   * 属性对应的 setting 方法的方法参数类型的映射。{@link #setMethods}
+   *
+   * key 为属性名称
+   * value 为方法参数类型
+   */
+  private final Map<String, Class<?>> setTypes = new HashMap<>();
+  /**
+   * 属性对应的 getting 方法的返回值类型的映射。{@link #getMethods}
+   *
+   * key 为属性名称
+   * value 为返回值的类型
+   */
+  private final Map<String, Class<?>> getTypes = new HashMap<>();
+  /**
+   * 默认构造方法
+   */
+  private Constructor<?> defaultConstructor;
+  /**
+   * 不区分大小写的属性集合
+   */
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<>();
 
   public Reflector(Class<?> clazz) {
@@ -78,7 +118,9 @@ public class Reflector {
   }
 
   private void addDefaultConstructor(Class<?> clazz) {
+    // 获得所有构造方法  // 设置构造方法可以访问，避免是 private 等修饰符
     Constructor<?>[] constructors = clazz.getDeclaredConstructors();
+    // 判断无参的构造方法
     Arrays.stream(constructors).filter(constructor -> constructor.getParameterTypes().length == 0)
       .findAny().ifPresent(constructor -> this.defaultConstructor = constructor);
   }
@@ -90,7 +132,7 @@ public class Reflector {
       .forEach(m -> addMethodConflict(conflictingGetters, PropertyNamer.methodToProperty(m.getName()), m));
     resolveGetterConflicts(conflictingGetters);
   }
-
+  //解决getter冲突变量，属性与其 getting 方法的映射。因为父类和子类都可能定义了相同属性的 getting 方法，所以 VALUE 会是个数组。
   private void resolveGetterConflicts(Map<String, List<Method>> conflictingGetters) {
     for (Entry<String, List<Method>> entry : conflictingGetters.entrySet()) {
       Method winner = null;
@@ -273,22 +315,27 @@ public class Reflector {
    * @param clazz The class
    * @return An array containing all methods in this class
    */
+  //获取所有方法
   private Method[] getClassMethods(Class<?> clazz) {
+    // 每个方法签名与该方法的映射
     Map<String, Method> uniqueMethods = new HashMap<>();
+    // 循环类，类的父类，类的父类的父类，直到父类为 Object
     Class<?> currentClass = clazz;
     while (currentClass != null && currentClass != Object.class) {
+      // <1> 记录当前类定义的方法
       addUniqueMethods(uniqueMethods, currentClass.getDeclaredMethods());
 
       // we also need to look for interface methods -
       // because the class may be abstract
+      // <2> 记录接口中定义的方法
       Class<?>[] interfaces = currentClass.getInterfaces();
       for (Class<?> anInterface : interfaces) {
         addUniqueMethods(uniqueMethods, anInterface.getMethods());
       }
-
+      // 获得父类
       currentClass = currentClass.getSuperclass();
     }
-
+    // 转换成 Method 数组返回
     Collection<Method> methods = uniqueMethods.values();
 
     return methods.toArray(new Method[0]);
@@ -328,6 +375,7 @@ public class Reflector {
    * @return If can control member accessible, it return {@literal true}
    * @since 3.5.0
    */
+  //是否可以修改可访问
   public static boolean canControlMemberAccessible() {
     try {
       SecurityManager securityManager = System.getSecurityManager();
